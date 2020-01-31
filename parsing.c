@@ -3,15 +3,23 @@
 
 #include <editline/readline.h>
 #include "mpc.h"
-//#include <editline/history.h>
 
-int main(int argc, char** argv) {
-   
+typedef struct {
+  mpc_parser_t* Number;
+  mpc_parser_t *Operator;
+  mpc_parser_t *Expr;
+  mpc_parser_t *Lispy;
+} lispy_lang_t;
+
+static lispy_lang_t lispy_lang;
+
+int create_parser(void)
+{
   /* Create Some Parsers */
-  mpc_parser_t* Number   = mpc_new("number");
-  mpc_parser_t* Operator = mpc_new("operator");
-  mpc_parser_t* Expr     = mpc_new("expr");
-  mpc_parser_t* Lispy    = mpc_new("lispy");
+  lispy_lang.Number   = mpc_new("number");
+  lispy_lang.Operator = mpc_new("operator");
+  lispy_lang.Expr     = mpc_new("expr");
+  lispy_lang.Lispy    = mpc_new("lispy");
 
   /* Define them with the following Language */
   mpca_lang(MPCA_LANG_DEFAULT,
@@ -21,38 +29,30 @@ int main(int argc, char** argv) {
       expr     : <number> | '(' <operator> <expr>+ ')' ;  \
       lispy    : /^/ <operator> <expr>+ /$/ ;             \
     ",
-    Number, Operator, Expr, Lispy);
+    lispy_lang.Number, lispy_lang.Operator, lispy_lang.Expr, lispy_lang.Lispy);
 
-  puts("Lispy Version 0.0.0.0.2");
-  puts("Press Ctrl+c to Exit\n");
+  return 0;
+}
 
-   
-  /* In a never ending loop */
-  while (1) {
-    
-    /* Output our prompt and get input */
-    char* input = readline("lispy> ");
-    
-    /* Add input to history */
-    add_history(input);
+int parse_string(char *input)
+{
+  static mpc_result_t r;
 
-    /* parse the user input */
-    mpc_result_t r;
-    if (mpc_parse("<stdin>", input, Lispy, &r)) {
-      mpc_ast_print(r.output);
-      mpc_ast_delete(r.output);
-    } else {
-      mpc_err_print(r.error);
-      mpc_err_delete(r.error);
-    }
-
-    /* Free retrived input */
-    free(input);
+  if (mpc_parse("<stdin>", input, lispy_lang.Lispy, &r)) {
+    mpc_ast_print(r.output);
+    mpc_ast_delete(r.output);
+  } else {
+    mpc_err_print(r.error);
+    mpc_err_delete(r.error);
   }
 
-  mpc_cleanup(4, Number, Operator, Expr, Lispy);
-  
   return 0;
+}
+
+void clean_parser(void)
+{
+  mpc_cleanup(4, lispy_lang.Number, lispy_lang.Operator, 
+      lispy_lang.Expr, lispy_lang.Lispy);
 }
 
 
