@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <editline/readline.h>
 #include "mpc.h"
 
 typedef struct {
@@ -10,6 +9,8 @@ typedef struct {
   mpc_parser_t *Expr;
   mpc_parser_t *Lispy;
 } lispy_lang_t;
+
+extern long eval(mpc_ast_t* t);
 
 static lispy_lang_t lispy_lang;
 
@@ -37,9 +38,12 @@ int create_parser(void)
 int parse_string(char *input)
 {
   static mpc_result_t r;
+  long result;
 
   if (mpc_parse("<stdin>", input, lispy_lang.Lispy, &r)) {
     mpc_ast_print(r.output);
+    result = eval(r.output);
+    printf("%li\n", result);
     mpc_ast_delete(r.output);
   } else {
     mpc_err_print(r.error);

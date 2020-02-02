@@ -1,6 +1,6 @@
 MPC=./mpc-0.8.7
 INC= parsing.h ${MPC}/mpc.h
-SRC= parsing.c prompt.c ${MPC}/mpc.c 
+SRC= parsing.c prompt.c ${MPC}/mpc.c evaluation.c 
 
 all: parsing
 
