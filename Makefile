@@ -4,6 +4,8 @@ SRC= parsing.c prompt.c ${MPC}/mpc.c evaluation.c lval.c
 
 all: lispy_app
 
+clean:
+	rm -rf *.o *~ lispy_app
 
 lispy_app: ${INC} ${SRC}
 	gcc -std=c99 -Wall -ledit -lm -I${MPC} ${SRC} -o lispy
