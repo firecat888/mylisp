@@ -1,0 +1,14 @@
+#Todo
+
+* Explain why to use List instead of S-expr
+* Next step: Chp10 Q-expression
+
+#2/10
+
+* Evaluation function for list OK
+
+
+#2/8
+
+* parsing to s-expression OK
+
