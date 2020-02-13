@@ -9,7 +9,7 @@ lval* builtin_op(lval* a, char* op) {
   for (int i = 0; i < a->count; i++) {
     if (a->value.cell[i]->type != LVAL_NUM) {
       lval_del(a);
-      return lval_err(LERR_BAD_NUM); /*"Cannot operate on non-number!"); */
+      return lval_err(LERR_BAD_NUM, "Cannot operate on non-number"); /*"Cannot operate on non-number!"); */
     }
   }
   
@@ -34,7 +34,7 @@ lval* builtin_op(lval* a, char* op) {
     if (strcmp(op, "/") == 0) {
       if (y->value.num == 0) {
         lval_del(x); lval_del(y);
-        x = lval_err(LERR_DIV_ZERO); /*"Division By Zero." */
+        x = lval_err(LERR_DIV_ZERO, "Divison by zero"); /*"Division By Zero." */
         break;
       }
       x->value.num /= y->value.num;
@@ -74,7 +74,7 @@ lval* lval_eval_list(lval* v) {
   lval* f = lval_list_pop(v, 0);
   if (f->type != LVAL_SYM) {
     lval_del(f); lval_del(v);
-    return lval_err(LERR_BAD_LIST); /*"S-expression Does not start with symbol."); */
+    return lval_err(LERR_BAD_LIST, "List does not start with symbol"); /*"S-expression Does not start with symbol."); */
   }
   
   /* Call builtin with operator */

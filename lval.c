@@ -13,10 +13,11 @@ lval* lval_num(long x) {
 }
 
 /* Construct a pointer to a new Error lval */ 
-lval* lval_err(int x) {
+lval* lval_err(int code, char* msg) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_ERR;
-  v->value.err = x;
+  v->value.err.code = code;
+  v->value.err.msg  = strdup(msg);
   return v;
 }
 
@@ -44,7 +45,9 @@ void lval_del(lval* v) {
   switch (v->type) {
     /* Do nothing special for number type */
     case LVAL_NUM: 
+      break;
     case LVAL_ERR:
+      free(v->value.err.msg);
       break;
     
     /* For Sym free the string data */
@@ -122,17 +125,17 @@ void lval_print(lval* v) {
     /* In the case the type is an error */
     case LVAL_ERR:
       /* Check what type of error it is and print it */
-      if (v->value.err == LERR_DIV_ZERO) {
-        printf("Error: Division By Zero!");
+      if (v->value.err.code == LERR_DIV_ZERO) {
+        printf("ERR_DIV_ZERO: %s !", v->value.err.msg);
       }
-      if (v->value.err == LERR_BAD_OP)   {
-        printf("Error: Invalid Operator!");
+      else if (v->value.err.code == LERR_BAD_OP)   {
+        printf("ERR_BAD_OP: %s !", v->value.err.msg);
       }
-      if (v->value.err == LERR_BAD_NUM)  {
-        printf("Error: Invalid Number!");
+      else if (v->value.err.code == LERR_BAD_NUM)  {
+        printf("ERR_BAD_NUM: %s !", v->value.err.msg);
       }
-      if (v->value.err == LERR_BAD_LIST) {
-        printf("Error: Invalid List");
+      else if (v->value.err.code == LERR_BAD_LIST) {
+        printf("ERR_BAD_LIST: %s !", v->value.err.msg);
       }
       break;
  

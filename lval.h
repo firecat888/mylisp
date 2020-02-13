@@ -8,13 +8,18 @@ enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM, LERR_BAD_LIST };
 /* Create Enumeration of Possible lval Types */
 enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_LIST};
 
+typedef struct lerr {
+  int code;
+  char* msg;
+} lerr;
+
 /* Declare New lval Struct */
 typedef struct lval {
   int type;
   union {
     long num; /* type == LVAL_NUM */
     /* Error and Symbol types have some string data */
-    int err; /* type == LVAL_ERR */
+    lerr err; /* type == LVAL_ERR */
     char* sym; /* type == LVAL_SYM */
     struct lval** cell; /*type == LVAL_LIST */
   } value;
@@ -29,7 +34,7 @@ typedef struct lval {
 lval* lval_num(long x);
 
 /* Create a new error type lval */
-lval* lval_err(int x);
+lval* lval_err(int code, char* msg);
 
 /* Create a pointer to a new Symbol lval */
 lval* lval_sym(char* s);

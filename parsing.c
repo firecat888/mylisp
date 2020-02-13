@@ -42,8 +42,8 @@ int create_parser(void)
 lval* lval_read_num(mpc_ast_t* t) {
   errno = 0;
   long x = strtol(t->contents, NULL, 10);
-  return errno != ERANGE ?
-    lval_num(x) : lval_err(LERR_BAD_NUM);
+  return errno == 0?
+    lval_num(x) : lval_err(LERR_BAD_NUM, "Bad number");
 }
 
 /* Create internal structure from AST for evalution */
