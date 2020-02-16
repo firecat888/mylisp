@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include "lval.h"
 
 
@@ -39,6 +40,15 @@ lval* lval_list(void) {
   return v;
 }
 
+/* A pointer to a new empty qexpr lval */
+lval* lval_qexpr(void) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_QEXPR;
+  v->value.qexpr = NULL;
+  return v;
+}
+
+
 /* Free var of lval type */
 void lval_del(lval* v) {
 
@@ -63,6 +73,11 @@ void lval_del(lval* v) {
       /* Also free the memory allocated to contain the pointers */
       free(v->value.cell);
     break;
+
+    case LVAL_QEXPR:
+      if (v->value.qexpr != NULL)
+        lval_del(v->value.qexpr);
+      break;
   }
   
   /* Free the memory allocated for the "lval" struct itself */
@@ -102,6 +117,47 @@ lval* lval_list_take(lval* v, int i) {
   return x;
 }
 
+/* John two list */
+// list, list -> list
+// (a b c) (d e) -> (a b c d e)
+lval* lval_list_join(lval* x, lval* y) {
+
+  while (y->count) {
+    x = lval_list_add(x, lval_list_pop(y, 0));
+  }
+
+  lval_del(y);  
+  return x;
+}
+
+/* Take sub element from qexpr, delete qexpr
+ * qexpr -> list
+ * '(a b c) -> (a b c)
+ */
+lval* lval_qexpr_unquote(lval* q) {
+  assert(q->value.qexpr != NULL);
+  lval* v = q->value.qexpr;
+  q->value.qexpr = NULL;
+  lval_del(q);
+  return v;
+}
+
+/* Quote s-expr 
+ * s-expr -> q-expr
+ * a -> 'a, (a b c) -> '(a b c)
+ */
+lval * lval_sexpr_quote(lval* x) {
+  lval* q = lval_qexpr();
+  q->value.qexpr = x;
+  return q;
+}
+
+/* Append sub lval to qexpr */
+lval* lval_qexpr_add(lval* q, lval* x) {
+  q->value.qexpr = x;
+  return q;
+}
+
 /* Print an List type lval */
 void lval_list_print(lval* v, char open, char close) {
   putchar(open);
@@ -116,6 +172,15 @@ void lval_list_print(lval* v, char open, char close) {
     }
   }
   putchar(close);
+}
+
+/* Print an Qexpr type lval */
+void lval_qexpr_print(lval* q) {
+
+  assert(q->value.qexpr != NULL);
+
+  printf("'");
+  lval_print(q->value.qexpr);
 }
 
 void lval_print(lval* v) {
@@ -141,6 +206,7 @@ void lval_print(lval* v) {
  
     case LVAL_SYM:   printf("%s", v->value.sym); break;
     case LVAL_LIST:  lval_list_print(v, '(', ')'); break;
+    case LVAL_QEXPR: lval_qexpr_print(v); break;
   }
 }
 
