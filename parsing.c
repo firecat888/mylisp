@@ -32,10 +32,8 @@ int create_parser(void)
   mpca_lang(MPCA_LANG_DEFAULT,
     "                                                     \
       number   : /-?[0-9]+/ ;                             \
-      symbol   : \"list\" | \"head\" | \"tail\"          \
-               |  \"eval\" | \"join\"                     \
-               |  '+' | '-' | '*' | '/' ;                  \
-      list     : '(' <sexpr>* ')' ;                        \
+      symbol   : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ;       \
+      list     : '(' <sexpr>* ')' ;                       \
       sexpr    : <number> | <symbol> | <list> ;           \
       qexpr    : '''<sexpr> ;                   \
       expr     : <sexpr> | <qexpr> ;           \
@@ -91,9 +89,9 @@ lval *lval_read(mpc_ast_t* t) {
   return x;
 }
 
-extern lval* lval_eval(lval* v);
+extern lval* lval_eval(lenv* e, lval* v);
 
-int parse_string(char *input)
+int parse_string(lenv* e, char *input)
 {
   static mpc_result_t r;
 
@@ -109,7 +107,7 @@ int parse_string(char *input)
 #if 1
     /* Evaluate List */
     lval *result;
-    result = lval_eval(llist);
+    result = lval_eval(e, llist);
     printf("Evaluating result: ");lval_println(result);
     lval_del(result);
 #endif

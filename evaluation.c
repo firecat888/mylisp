@@ -12,7 +12,7 @@
  * list -> q_expr 
  * (a b c) -> '(a b c)
  */
-lval* builtin_list(lval* a) {
+lval* builtin_list(lenv* e, lval* a) {
   return lval_sexpr_quote(a);
 }
 
@@ -20,7 +20,7 @@ lval* builtin_list(lval* a) {
 * list(q-expr(list)) -> q-expr
 * ('(a b c)) -> 'a 
 */
-lval* builtin_head(lval* a) {
+lval* builtin_head(lenv* e, lval* a) {
   LASSERT(a, a->count == 1,
     "Function 'head' passed too many arguments.");
   LASSERT(a, a->value.cell[0]->type == LVAL_QEXPR,
@@ -38,7 +38,7 @@ lval* builtin_head(lval* a) {
 *  list(qexpr(list)) -> qexpr(list) 
 *  ('(a b c)) -> '(b c)
 */
-lval* builtin_tail(lval* a) {
+lval* builtin_tail(lenv* e, lval* a) {
   LASSERT(a, a->count == 1,
     "Function 'tail' passed too many arguments.");
   LASSERT(a, a->value.cell[0]->type == LVAL_QEXPR,
@@ -52,19 +52,19 @@ lval* builtin_tail(lval* a) {
   return lval_sexpr_quote(v);
 }
 
-lval* lval_eval(lval* v);
+lval* lval_eval(lenv* e, lval* v);
 
 /* Evalute list in q-expr
  * qexpr(list) -> lval
  * '(+ 1 2) -> 3
  */
-lval* builtin_qexpr_eval(lval* a) {
+lval* builtin_qexpr_eval(lenv* e, lval* a) {
 
  LASSERT(a, a->type == LVAL_QEXPR,
     "Function 'eval' passed incorrect type.");
   
   lval* x = lval_qexpr_unquote(a);
-  return lval_eval(x);
+  return lval_eval(e, x);
 }
 
 
@@ -73,7 +73,7 @@ lval* builtin_qexpr_eval(lval* a) {
  * list(qexpr qexpr ...) -> list 
  * ('(a b c) '(d e)) -> '(a b c d e)
  */
-lval* builtin_join(lval* a) {
+lval* builtin_join(lenv* e, lval* a) {
 
   for (int i = 0; i < a->count; i++) {
     LASSERT(a, a->value.cell[i]->type == LVAL_QEXPR,
@@ -98,7 +98,7 @@ lval* builtin_join(lval* a) {
 
 
 
-lval* builtin_op(lval* a, char* op) {
+lval* builtin_op(lenv* e, lval* a, char* op) {
   
   /* Ensure all arguments are numbers */
   for (int i = 0; i < a->count; i++) {
@@ -144,23 +144,49 @@ lval* builtin_op(lval* a, char* op) {
   return x;
 }
 
-lval* builtin(lval* a, char* func) {
-  if (strcmp("list", func) == 0) { return builtin_list(a); }
-  if (strcmp("head", func) == 0) { return builtin_head(a); }
-  if (strcmp("tail", func) == 0) { return builtin_tail(a); }
-  if (strcmp("join", func) == 0) { return builtin_join(a); }
-  if (strcmp("eval", func) == 0) { return builtin_qexpr_eval(a); }
-  if (strstr("+-/*", func)) { return builtin_op(a, func); }
-  lval_del(a);
-  return lval_err(LERR_ERR, "Unknown Function!");
+lval* builtin_add(lenv* e, lval* a) {
+  return builtin_op(e, a, "+");
 }
 
+lval* builtin_sub(lenv* e, lval* a) {
+  return builtin_op(e, a, "-");
+}
 
-lval* lval_eval_list(lval* v) {
+lval* builtin_mul(lenv* e, lval* a) {
+  return builtin_op(e, a, "*");
+}
+
+lval* builtin_div(lenv* e, lval* a) {
+  return builtin_op(e, a, "/");
+}
+
+void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
+  lval* k = lval_sym(name);
+  lval* v = lval_fun(func);
+  lenv_put(e, k, v);
+  lval_del(k); lval_del(v);
+}
+
+void lenv_add_builtins(lenv* e) {
+  /* List Functions */
+  lenv_add_builtin(e, "list", builtin_list);
+  lenv_add_builtin(e, "head", builtin_head);
+  lenv_add_builtin(e, "tail", builtin_tail);
+  lenv_add_builtin(e, "eval", builtin_qexpr_eval);
+  lenv_add_builtin(e, "join", builtin_join);
+
+  /* Mathematical Functions */
+  lenv_add_builtin(e, "+", builtin_add);
+  lenv_add_builtin(e, "-", builtin_sub);
+  lenv_add_builtin(e, "*", builtin_mul);
+  lenv_add_builtin(e, "/", builtin_div);
+}
+
+lval* lval_eval_list(lenv* e, lval* v) {
   
   /* Evaluate Children */
   for (int i = 0; i < v->count; i++) {
-    v->value.cell[i] = lval_eval(v->value.cell[i]);
+    v->value.cell[i] = lval_eval(e, v->value.cell[i]);
   }
   
   /* Error Checking */
@@ -176,23 +202,31 @@ lval* lval_eval_list(lval* v) {
   
   /* Ensure First Element is Symbol */
   lval* f = lval_list_pop(v, 0);
-  if (f->type != LVAL_SYM) {
+  if (f->type != LVAL_FUN) {
     lval_del(f); lval_del(v);
     return lval_err(LERR_BAD_LIST, "List does not start with symbol"); 
   }
   
   /* Call builtin with operator */
-  lval* result = builtin(v, f->value.sym);
+  lval* result = f->value.fun(e, v);
   lval_del(f);
   return result;
 }
 
-lval* lval_eval(lval* v) {
-  /* Evaluate Sexpressions */
-  if (v->type == LVAL_LIST) { return lval_eval_list(v); }
+lval* lval_eval(lenv* e, lval* v) {
+
+  if (v->type == LVAL_SYM) {
+    lval* x = lenv_get(e, v);
+    lval_del(v);
+    return x;
+  }
+
+  /* Evaluate List */
+  if (v->type == LVAL_LIST) { return lval_eval_list(e, v); }
   /* All other lval types remain the same */
   return v;
 }
+
 
 
 

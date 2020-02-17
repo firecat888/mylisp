@@ -48,6 +48,13 @@ lval* lval_qexpr(void) {
   return v;
 }
 
+/* Create a pointer to a new Function lval */
+lval *lval_fun(lbuiltin func) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_FUN;
+  v->value.fun  = func;
+  return v;
+}
 
 /* Free var of lval type */
 void lval_del(lval* v) {
@@ -78,11 +85,53 @@ void lval_del(lval* v) {
       if (v->value.qexpr != NULL)
         lval_del(v->value.qexpr);
       break;
+    
+    case LVAL_FUN:
+      break;
   }
   
   /* Free the memory allocated for the "lval" struct itself */
   free(v);
 }
+
+/* Copy a lval to a new lval */
+lval* lval_copy(lval* v) {
+
+  lval* x = malloc(sizeof(lval));
+  x->type = v->type;
+
+  switch (v->type) {
+
+    /* Copy Functions and Numbers Directly */
+    case LVAL_FUN: x->value.fun = v->value.fun; break;
+    case LVAL_NUM: x->value.num = v->value.num; break;
+
+    /* Copy Strings using malloc and strcpy */
+    case LVAL_ERR:
+      x->value.err.code = v->value.err.code;
+      x->value.err.msg  = strdup(v->value.err.msg);
+      break;
+
+    case LVAL_SYM:
+      x->value.sym = strdup(v->value.sym);
+      break;
+
+    /* Copy Lists by copying each sub-expression */
+    case LVAL_LIST:
+      x->count = v->count;
+      x->value.cell = malloc(sizeof(lval*) * x->count);
+      for (int i = 0; i < x->count; i++) {
+        x->value.cell[i] = lval_copy(v->value.cell[i]);
+      }
+      break;
+    case LVAL_QEXPR:
+      x->value.qexpr = lval_copy(v->value.qexpr);
+      break;
+  }
+
+  return x;
+}
+
 
 /* Add x to sub element of list v */
 lval* lval_list_add(lval* v, lval* x) {
@@ -207,9 +256,71 @@ void lval_print(lval* v) {
     case LVAL_SYM:   printf("%s", v->value.sym); break;
     case LVAL_LIST:  lval_list_print(v, '(', ')'); break;
     case LVAL_QEXPR: lval_qexpr_print(v); break;
+    case LVAL_FUN:   printf("<funtion>"); break;
   }
 }
 
 void lval_println(lval* v) { lval_print(v); putchar('\n'); }
 
 
+/* Create a new env */
+lenv* lenv_new(void) {
+  lenv* e = malloc(sizeof(lenv));
+  e->count = 0;
+  e->vars  = NULL;
+  return e;
+}
+
+/* Delete a env */
+void lenv_del(lenv* e) {
+  for (int i = 0; i<e->count; i++) {
+    free(e->vars[i].sym);
+    lval_del(e->vars[i].val);
+  }
+  free(e->vars);
+  free(e);
+}
+
+/* Get a val by its symbol name from lenv */
+lval* lenv_get(lenv* e, lval* k) {
+
+  /* Iterate over all items in environment */
+  for (int i = 0; i < e->count; i++) {
+    /* Check if the stored string matches the symbol string */
+    /* If it does, return a copy of the value */
+    if (strcmp(e->vars[i].sym, k->value.sym) == 0) {
+      return lval_copy(e->vars[i].val);
+    }
+  }
+  /* If no symbol found return error */
+  return lval_err(LERR_ERR, "unbound symbol!");
+}
+
+/* Replace var in env
+ * lenv, lval, lval -> void
+ * find k->sym in e; if found, replace it with v,
+ *                   if not found, add v to e
+ */
+void lenv_put(lenv* e, lval* k, lval* v) {
+
+  /* Iterate over all items in environment */
+  /* This is to see if variable already exists */
+  for (int i = 0; i < e->count; i++) {
+
+    /* If variable is found delete item at that position */
+    /* And replace with variable supplied by user */
+    if (strcmp(e->vars[i].sym, k->value.sym) == 0) {
+      lval_del(e->vars[i].val);
+      e->vars[i].val = lval_copy(v);
+      return;
+    }
+  }
+
+  /* If no existing entry found allocate space for new entry */
+  e->count++;
+  e->vars = realloc(e->vars, sizeof(lvar) * e->count);
+
+  /* Copy contents of lval and symbol string into new location */
+  e->vars[e->count-1].val = lval_copy(v);
+  e->vars[e->count-1].sym = strdup(k->value.sym);
+}
