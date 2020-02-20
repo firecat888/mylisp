@@ -39,8 +39,11 @@ struct lval {
 /* Create a new number type lval */
 lval* lval_num(long x);
 
+/* Get type name */
+char* ltype_name(int t);
+ 
 /* Create a new error type lval */
-lval* lval_err(int code, char* msg);
+lval* lval_err(int code, char* fmt, ...);
 
 /* Create a pointer to a new Symbol lval */
 lval* lval_sym(char* s);

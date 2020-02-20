@@ -1,10 +1,29 @@
 
 #include <string.h>
+#include <stdarg.h>
 #include "mpc.h"
 #include "lval.h"
 
-#define LASSERT(args, cond, msg) \
-  if (!(cond)) { lval_del(args); return lval_err(LERR_ERR, msg); }
+#define LASSERT(args, cond, fmt, ...) \
+  if (!(cond)) { \
+    lval* err = lval_err(LERR_ERR, fmt, ##__VA_ARGS__); \
+    lval_del(args); \
+    return err; \
+  }
+
+#define LASSERT_TYPE(func, args, index, expect) \
+  LASSERT(args, args->value.cell[index]->type == expect, \
+    "Function '%s' passed incorrect type for argument %i. Got %s, Expected %s.", \
+    func, index, ltype_name(args->value.cell[index]->type), ltype_name(expect))
+
+#define LASSERT_NUM(func, args, num) \
+  LASSERT(args, args->count == num, \
+    "Function '%s' passed incorrect number of arguments. Got %i, Expected %i.", \
+    func, args->count, num)
+
+#define LASSERT_NOT_EMPTY(func, args, index) \
+  LASSERT(args, args->value.cell[index]->value.qexpr->count != 0, \
+    "Function '%s' passed {} for argument %i.", func, index)
 
 /* Add builtin function  */
 
@@ -21,12 +40,9 @@ lval* builtin_list(lenv* e, lval* a) {
 * ('(a b c)) -> 'a 
 */
 lval* builtin_head(lenv* e, lval* a) {
-  LASSERT(a, a->count == 1,
-    "Function 'head' passed too many arguments.");
-  LASSERT(a, a->value.cell[0]->type == LVAL_QEXPR,
-    "Function 'head' passed incorrect type.");
-  LASSERT(a, a->value.cell[0]->value.qexpr->count != 0,
-    "Function 'head' passed {}.");
+  LASSERT_NUM("head", a, 1);
+  LASSERT_TYPE("head", a, 0, LVAL_QEXPR);
+  LASSERT_NOT_EMPTY("head", a, 0);
   
   lval* q = lval_list_take(a, 0);  
   lval* v = lval_qexpr_unquote(q);
@@ -39,12 +55,9 @@ lval* builtin_head(lenv* e, lval* a) {
 *  ('(a b c)) -> '(b c)
 */
 lval* builtin_tail(lenv* e, lval* a) {
-  LASSERT(a, a->count == 1,
-    "Function 'tail' passed too many arguments.");
-  LASSERT(a, a->value.cell[0]->type == LVAL_QEXPR,
-    "Function 'tail' passed incorrect type.");
-  LASSERT(a, a->value.cell[0]->value.qexpr->count != 0,
-    "Function 'tail' passed {}.");
+  LASSERT_NUM("tail", a, 1);
+  LASSERT_TYPE("tail", a, 0, LVAL_QEXPR);
+  LASSERT_NOT_EMPTY("tail", a, 0);
 
   lval* q = lval_list_take(a, 0);  
   lval* v = lval_qexpr_unquote(q);
@@ -54,8 +67,7 @@ lval* builtin_tail(lenv* e, lval* a) {
 
 
 lval* builtin_def(lenv* e, lval* a) {
-  LASSERT(a, a->value.cell[0]->type == LVAL_QEXPR,
-    "Function 'def' passed incorrect type!");
+  LASSERT_TYPE("def", a, 0, LVAL_QEXPR);
 
   /* First argument is symbol list */
   lval* syms = lval_qexpr_pop(a->value.cell[0]);
@@ -63,13 +75,17 @@ lval* builtin_def(lenv* e, lval* a) {
  /* Ensure all elements of first list are symbols */
   for (int i = 0; i < syms->count; i++) {
     LASSERT(a, syms->value.cell[i]->type == LVAL_SYM,
-      "Function 'def' cannot define non-symbol");
+      "Function 'def' cannot define non-symbol."
+      "Got %s, Expected %s.",
+      ltype_name(syms->value.cell[i]->type), ltype_name(LVAL_SYM));
   }
 
   /* Check correct number of symbols and values */
   LASSERT(a, syms->count == a->count-1,
     "Function 'def' cannot define incorrect "
-    "number of values to symbols");
+    "number of values to symbols "
+    "Got %i, Expected %i.",
+    syms->count, a->count-1);
 
   /* Assign copies of values to symbols */
   for (int i = 0; i < syms->count; i++) {
@@ -88,9 +104,7 @@ lval* lval_eval(lenv* e, lval* v);
  * '(+ 1 2) -> 3
  */
 lval* builtin_qexpr_eval(lenv* e, lval* a) {
-
- LASSERT(a, a->type == LVAL_QEXPR,
-    "Function 'eval' passed incorrect type.");
+  LASSERT_TYPE("eval", a, 0, LVAL_QEXPR);
   
   lval* x = lval_qexpr_unquote(a);
   return lval_eval(e, x);
@@ -105,10 +119,11 @@ lval* builtin_qexpr_eval(lenv* e, lval* a) {
 lval* builtin_join(lenv* e, lval* a) {
 
   for (int i = 0; i < a->count; i++) {
-    LASSERT(a, a->value.cell[i]->type == LVAL_QEXPR,
-      "Function 'join' passed incorrect type.");
+    LASSERT_TYPE("join", a, i, LVAL_QEXPR);
     LASSERT(a, a->value.cell[i]->value.qexpr->type == LVAL_LIST,
-      "Function 'join' passed incorrect type.");
+      "Function 'join' passed incorrect type."
+      "Got %s, Expected: %s. ",
+       ltype_name(a->value.cell[i]->value.qexpr->type), ltype_name(LVAL_LIST));
   }
   
   lval* q = lval_list_pop(a, 0);

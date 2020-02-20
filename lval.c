@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdarg.h>
 #include "lval.h"
 
 
@@ -13,12 +14,35 @@ lval* lval_num(long x) {
   return v;
 }
 
+
+/* Get type name */
+char* ltype_name(int t) {
+  switch(t) {
+    case LVAL_FUN: return "Function";
+    case LVAL_NUM: return "Number";
+    case LVAL_ERR: return "Error";
+    case LVAL_SYM: return "Symbol";
+    case LVAL_LIST: return "List";
+    case LVAL_QEXPR: return "Q-Expr";
+    default: return "Unknown";
+  }
+}
+
+
 /* Construct a pointer to a new Error lval */ 
-lval* lval_err(int code, char* msg) {
+lval* lval_err(int code, char* fmt, ...) {
+  #define MSG_LEN 1024
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_ERR;
   v->value.err.code = code;
-  v->value.err.msg  = strdup(msg);
+  v->value.err.msg  = malloc(MSG_LEN);
+  memset(v->value.err.msg, 0, MSG_LEN);
+
+  va_list va;
+  va_start(va, fmt);
+  vsnprintf(v->value.err.msg, MSG_LEN-1, fmt, va);
+  va_end(va);
+
   return v;
 }
 
@@ -251,19 +275,8 @@ void lval_print(lval* v) {
     /* In the case the type is an error */
     case LVAL_ERR:
       /* Check what type of error it is and print it */
-      if (v->value.err.code == LERR_DIV_ZERO) {
-        printf("ERR_DIV_ZERO: %s !", v->value.err.msg);
-      }
-      else if (v->value.err.code == LERR_BAD_OP)   {
-        printf("ERR_BAD_OP: %s !", v->value.err.msg);
-      }
-      else if (v->value.err.code == LERR_BAD_NUM)  {
-        printf("ERR_BAD_NUM: %s !", v->value.err.msg);
-      }
-      else if (v->value.err.code == LERR_BAD_LIST) {
-        printf("ERR_BAD_LIST: %s !", v->value.err.msg);
-      }
-      break;
+        printf("Error: %s", v->value.err.msg);
+        break;
  
     case LVAL_SYM:   printf("%s", v->value.sym); break;
     case LVAL_LIST:  lval_list_print(v, '(', ')'); break;
