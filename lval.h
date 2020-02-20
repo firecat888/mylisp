@@ -75,6 +75,9 @@ lval* lval_list_join(lval* x, lval* y);
 /* Take sub element from qexpr, delete qexpr */
 lval* lval_qexpr_unquote(lval* q);
 
+/* Pop sub element from qexpr */
+lval* lval_qexpr_pop(lval* q);
+
 /* Quote s-expr */
 lval* lval_sexpr_quote(lval* x);
 

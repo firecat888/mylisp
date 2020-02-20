@@ -52,6 +52,35 @@ lval* builtin_tail(lenv* e, lval* a) {
   return lval_sexpr_quote(v);
 }
 
+
+lval* builtin_def(lenv* e, lval* a) {
+  LASSERT(a, a->value.cell[0]->type == LVAL_QEXPR,
+    "Function 'def' passed incorrect type!");
+
+  /* First argument is symbol list */
+  lval* syms = lval_qexpr_pop(a->value.cell[0]);
+
+ /* Ensure all elements of first list are symbols */
+  for (int i = 0; i < syms->count; i++) {
+    LASSERT(a, syms->value.cell[i]->type == LVAL_SYM,
+      "Function 'def' cannot define non-symbol");
+  }
+
+  /* Check correct number of symbols and values */
+  LASSERT(a, syms->count == a->count-1,
+    "Function 'def' cannot define incorrect "
+    "number of values to symbols");
+
+  /* Assign copies of values to symbols */
+  for (int i = 0; i < syms->count; i++) {
+    lenv_put(e, syms->value.cell[i], a->value.cell[i+1]);
+  }
+
+  lval_del(a);
+  return lval_list();
+}
+
+/* Forward declaration*/
 lval* lval_eval(lenv* e, lval* v);
 
 /* Evalute list in q-expr
@@ -168,6 +197,8 @@ void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
 }
 
 void lenv_add_builtins(lenv* e) {
+  /* Variable Function */
+  lenv_add_builtin(e, "def", builtin_def);
   /* List Functions */
   lenv_add_builtin(e, "list", builtin_list);
   lenv_add_builtin(e, "head", builtin_head);
@@ -200,7 +231,7 @@ lval* lval_eval_list(lenv* e, lval* v) {
   /* Single Expression */
   if (v->count == 1) { return lval_list_take(v, 0); }
   
-  /* Ensure First Element is Symbol */
+  /* Ensure First Element is Function */
   lval* f = lval_list_pop(v, 0);
   if (f->type != LVAL_FUN) {
     lval_del(f); lval_del(v);

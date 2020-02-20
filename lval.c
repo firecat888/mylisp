@@ -191,6 +191,18 @@ lval* lval_qexpr_unquote(lval* q) {
   return v;
 }
 
+/* Pop sub element from qexpr (not free qexpr)
+ * qexpr -> list
+ * '(a b c) -> (a b c)
+ */
+lval* lval_qexpr_pop(lval* q) {
+  assert(q->value.qexpr != NULL);
+  lval* v = q->value.qexpr;
+  q->value.qexpr = NULL;
+  return v;
+}
+
+
 /* Quote s-expr 
  * s-expr -> q-expr
  * a -> 'a, (a b c) -> '(a b c)

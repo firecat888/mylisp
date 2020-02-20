@@ -25,7 +25,6 @@ int create_parser(void)
   lispy_lang.List     = mpc_new("list");
   lispy_lang.Sexpr    = mpc_new("sexpr");
   lispy_lang.Qexpr    = mpc_new("qexpr");
-  lispy_lang.Expr     = mpc_new("expr");
   lispy_lang.Lispy    = mpc_new("lispy");
 
   /* Define them with the following Language */
@@ -34,13 +33,12 @@ int create_parser(void)
       number   : /-?[0-9]+/ ;                             \
       symbol   : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ;       \
       list     : '(' <sexpr>* ')' ;                       \
-      sexpr    : <number> | <symbol> | <list> ;           \
-      qexpr    : '''<sexpr> ;                   \
-      expr     : <sexpr> | <qexpr> ;           \
-      lispy    : /^/ <expr>* /$/ ;             \
+      sexpr    : <number> | <symbol> | <list> | <qexpr> ; \
+      qexpr    : '''<sexpr> ;                             \
+      lispy    : /^/ <sexpr>* /$/ ;                       \
     ",
     lispy_lang.Number, lispy_lang.Symbol, lispy_lang.List, lispy_lang.Sexpr, 
-    lispy_lang.Qexpr, lispy_lang.Expr, lispy_lang.Lispy);
+    lispy_lang.Qexpr, lispy_lang.Lispy);
 
   return 0;
 }
