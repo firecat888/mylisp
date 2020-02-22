@@ -73,10 +73,11 @@ lval* lval_qexpr(void) {
 }
 
 /* Create a pointer to a new Function lval */
-lval *lval_fun(lbuiltin func) {
+lval *lval_fun(lbuiltin f) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_FUN;
-  v->value.fun  = func;
+  v->value.fun = malloc(sizeof(lfun));
+  v->value.fun->builtin = f;
   return v;
 }
 
@@ -111,6 +112,7 @@ void lval_del(lval* v) {
       break;
     
     case LVAL_FUN:
+      free(v->value.fun);
       break;
   }
   
@@ -126,9 +128,14 @@ lval* lval_copy(lval* v) {
 
   switch (v->type) {
 
-    /* Copy Functions and Numbers Directly */
-    case LVAL_FUN: x->value.fun = v->value.fun; break;
+    /* Copy Numbers Directly */
     case LVAL_NUM: x->value.num = v->value.num; break;
+
+    /* Copy Functions and Numbers Directly */
+    case LVAL_FUN: 
+      x->value.fun = malloc(sizeof(lfun));
+      memcpy(x->value.fun, v->value.fun, sizeof(lfun));
+      break;
 
     /* Copy Strings using malloc and strcpy */
     case LVAL_ERR:

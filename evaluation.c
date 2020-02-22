@@ -254,7 +254,7 @@ lval* lval_eval_list(lenv* e, lval* v) {
   }
   
   /* Call builtin with operator */
-  lval* result = f->value.fun(e, v);
+  lval* result = f->value.fun->builtin(e, v);
   lval_del(f);
   return result;
 }

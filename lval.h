@@ -15,6 +15,13 @@ enum { LVAL_ERR, LVAL_NUM, LVAL_SYM,
 
 typedef lval* (*lbuiltin) (lenv*, lval*);
 
+typedef struct lfun {
+  lenv* env;
+  lval* formals;    /* Q-expr of list for function parameters */
+  lval* body;       /* Q-expr of list for function body  */
+  lbuiltin builtin; /* For internal function */
+} lfun;
+
 typedef struct lerr {
   int code;
   char* msg;
@@ -27,7 +34,7 @@ struct lval {
     long num;           /* type == LVAL_NUM */
     lerr err;           /* type == LVAL_ERR */
     char* sym;          /* type == LVAL_SYM */
-    lbuiltin fun;       /* type == LVAL_FUN */
+    lfun* fun;        /* type == LVAL_FUN */
     struct lval* qexpr; /* type == LVAL_QEXPR */
     struct lval** cell; /* type == LVAL_LIST */
   } value;

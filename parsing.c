@@ -121,8 +121,6 @@ int parse_string(lenv* e, char *input)
   return 0;
 }
 
-//todo 2/7
-//
 void clean_parser(void)
 {
   mpc_cleanup(4, lispy_lang.Number, lispy_lang.Symbol, 
