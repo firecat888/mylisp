@@ -65,8 +65,10 @@ lval* builtin_tail(lenv* e, lval* a) {
   return lval_sexpr_quote(v);
 }
 
-
-lval* builtin_def(lenv* e, lval* a) {
+/* Define variable 
+ * (def/= '(a b c) 1 2 3)
+ */
+lval* builtin_var(lenv* e, lval* a, char* func) {
   LASSERT_TYPE("def", a, 0, LVAL_QEXPR);
 
   /* First argument is symbol list */
@@ -89,11 +91,48 @@ lval* builtin_def(lenv* e, lval* a) {
 
   /* Assign copies of values to symbols */
   for (int i = 0; i < syms->count; i++) {
-    lenv_put(e, syms->value.cell[i], a->value.cell[i+1]);
+    if (strcmp(func, "def") == 0) /* global def */
+      lenv_def(e, syms->value.cell[i], a->value.cell[i+1]);
+    else if (strcmp(func, "=") == 0)
+      lenv_put(e, syms->value.cell[i], a->value.cell[i+1]);
+
   }
 
   lval_del(a);
   return lval_list();
+}
+
+
+lval* builtin_def(lenv* e, lval* a) {
+  return builtin_var(e, a, "def");
+}
+
+
+lval* builtin_put(lenv* e, lval* a) {
+  return builtin_var(e, a, "=");
+}
+
+
+lval* builtin_lambda(lenv* e, lval* a) {
+  /* Check Two arguments, each of which are Q-Expressions */
+  LASSERT_NUM("lambda", a, 2);
+  LASSERT_TYPE("lambda", a, 0, LVAL_QEXPR);
+  LASSERT_TYPE("lambda", a, 1, LVAL_QEXPR);
+
+  /* Pop first two arguments and pass them to lval_lambda */
+  lval* formals = lval_qexpr_pop(lval_list_pop(a, 0));
+
+  /* Check first Q-Expression contains only Symbols */
+   for (int i = 0; i < formals->count; i++) {
+    LASSERT(a, (formals->value.cell[i]->type == LVAL_SYM),
+      "Cannot define non-symbol. Got %s, Expected %s.",
+      ltype_name(formals->value.cell[i]->type),ltype_name(LVAL_SYM));
+  }
+
+  lval* body = lval_qexpr_pop(lval_list_pop(a, 0));
+  lval_del(a);
+
+  return lval_lambda(formals, body);
 }
 
 /* Forward declaration*/
@@ -204,9 +243,9 @@ lval* builtin_div(lenv* e, lval* a) {
   return builtin_op(e, a, "/");
 }
 
-void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
+void lenv_add_builtin(lenv* e, char* name, lbuiltin builtin) {
   lval* k = lval_sym(name);
-  lval* v = lval_fun(func);
+  lval* v = lval_builtin(builtin);
   lenv_put(e, k, v);
   lval_del(k); lval_del(v);
 }
@@ -214,12 +253,14 @@ void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
 void lenv_add_builtins(lenv* e) {
   /* Variable Function */
   lenv_add_builtin(e, "def", builtin_def);
+  lenv_add_builtin(e, "=", builtin_put);
   /* List Functions */
   lenv_add_builtin(e, "list", builtin_list);
   lenv_add_builtin(e, "head", builtin_head);
   lenv_add_builtin(e, "tail", builtin_tail);
   lenv_add_builtin(e, "eval", builtin_qexpr_eval);
   lenv_add_builtin(e, "join", builtin_join);
+  lenv_add_builtin(e, "lambda",   builtin_lambda);
 
   /* Mathematical Functions */
   lenv_add_builtin(e, "+", builtin_add);
@@ -227,6 +268,69 @@ void lenv_add_builtins(lenv* e) {
   lenv_add_builtin(e, "*", builtin_mul);
   lenv_add_builtin(e, "/", builtin_div);
 }
+
+lval* lval_eval_list(lenv* e, lval* v); 
+/* Function call
+ * fun(e, (x, y), (+ x y)), para(1, 2) 
+ *
+ * */
+lval* lval_call(lenv* env, lval* fun, lval* para) {
+
+  lfun* f = fun->value.fun;
+  /* If Builtin then simply apply that */
+  if (f->builtin) { return f->builtin(env, para); }
+
+  /* Record Argument Counts */
+  int given = para->count;
+  int total = f->formals->count;
+
+  /* While arguments still remain to be processed */
+  while (para->count) {
+
+    /* If we've ran out of formal arguments to bind */
+    if (f->formals->count == 0) {
+      lval_del(para); 
+      return lval_err(LERR_ERR,
+        "Function passed too many arguments. "
+        "Got %i, Expected %i.", given, total);
+    }
+
+    /* Pop the first symbol from the formals */
+    lval* sym = lval_list_pop(f->formals, 0);
+
+    /* Pop the next argument from the list */
+    lval* val = lval_list_pop(para, 0);
+
+    /* Bind a copy into the function's environment */
+    lenv_put(f->env, sym, val);
+
+    /* Delete symbol and value */
+    lval_del(sym); lval_del(val);
+  }
+
+  /* Argument list is now bound so can be cleaned up */
+  lval_del(para);
+
+  /* If all formals have been bound evaluate */
+  if (f->formals->count == 0) {
+
+    /* Set environment parent to evaluation environment */
+    f->env->par = env;
+
+    /* Evaluate and return */
+    return lval_eval_list(f->env, lval_copy(f->body));
+    /*
+    return builtin_qexpr_eval(
+      f->env, lval_list_add(lval_list(), lval_copy(f->body)));
+    */
+
+  } else {
+
+    /* Otherwise return partially evaluated function */
+    return lval_copy(fun);
+  }
+}
+
 
 lval* lval_eval_list(lenv* e, lval* v) {
   
@@ -248,13 +352,17 @@ lval* lval_eval_list(lenv* e, lval* v) {
   
   /* Ensure First Element is Function */
   lval* f = lval_list_pop(v, 0);
-  if (f->type != LVAL_FUN) {
+  if (f->type != LVAL_FUN) { 
+    lval* err = lval_err(LERR_ERR,
+        "S-Expression starts with incorrect type. "
+        "Got %s, Expected %s.",
+        ltype_name(f->type), ltype_name(LVAL_FUN));
     lval_del(f); lval_del(v);
-    return lval_err(LERR_BAD_LIST, "List does not start with symbol"); 
+    return err;
   }
   
   /* Call builtin with operator */
-  lval* result = f->value.fun->builtin(e, v);
+  lval* result = lval_call(e, f, v);
   lval_del(f);
   return result;
 }

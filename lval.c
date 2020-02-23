@@ -65,21 +65,40 @@ lval* lval_list(void) {
 }
 
 /* A pointer to a new empty qexpr lval */
-lval* lval_qexpr(void) {
+lval* lval_qexpr(lval* x) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_QEXPR;
-  v->value.qexpr = NULL;
+  v->value.qexpr = x;
   return v;
 }
 
 /* Create a pointer to a new Function lval */
-lval *lval_fun(lbuiltin f) {
+lval* lval_builtin(lbuiltin f) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_FUN;
   v->value.fun = malloc(sizeof(lfun));
   v->value.fun->builtin = f;
   return v;
 }
+
+
+lval* lval_lambda(lval* formals, lval* body) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_FUN;
+  v->value.fun = malloc(sizeof(lfun));
+
+  /* Set Builtin to Null */
+  v->value.fun->builtin = NULL;
+
+  /* Build new environment */
+  v->value.fun->env = lenv_new();
+
+  /* Set Formals and Body */
+  v->value.fun->formals = formals;
+  v->value.fun->body = body;
+  return v;
+}
+
 
 /* Free var of lval type */
 void lval_del(lval* v) {
@@ -112,6 +131,11 @@ void lval_del(lval* v) {
       break;
     
     case LVAL_FUN:
+      if (!IS_BUILTIN(v)) {
+        lenv_del(v->value.fun->env);
+        lval_del(v->value.fun->formals);
+        lval_del(v->value.fun->body);
+      }
       free(v->value.fun);
       break;
   }
@@ -123,6 +147,7 @@ void lval_del(lval* v) {
 /* Copy a lval to a new lval */
 lval* lval_copy(lval* v) {
 
+  lfun* func;
   lval* x = malloc(sizeof(lval));
   x->type = v->type;
 
@@ -133,8 +158,16 @@ lval* lval_copy(lval* v) {
 
     /* Copy Functions and Numbers Directly */
     case LVAL_FUN: 
-      x->value.fun = malloc(sizeof(lfun));
-      memcpy(x->value.fun, v->value.fun, sizeof(lfun));
+      func = malloc(sizeof(lfun));
+      if (IS_BUILTIN(v))
+        func->builtin = v->value.fun->builtin;
+      else {
+        func->builtin = NULL;
+        func->env = lenv_copy(v->value.fun->env);
+        func->formals = lval_copy(v->value.fun->formals);
+        func->body = lval_copy(v->value.fun->body);
+      }
+      x->value.fun = func;
       break;
 
     /* Copy Strings using malloc and strcpy */
@@ -239,8 +272,7 @@ lval* lval_qexpr_pop(lval* q) {
  * a -> 'a, (a b c) -> '(a b c)
  */
 lval * lval_sexpr_quote(lval* x) {
-  lval* q = lval_qexpr();
-  q->value.qexpr = x;
+  lval* q = lval_qexpr(x);
   return q;
 }
 
@@ -288,7 +320,14 @@ void lval_print(lval* v) {
     case LVAL_SYM:   printf("%s", v->value.sym); break;
     case LVAL_LIST:  lval_list_print(v, '(', ')'); break;
     case LVAL_QEXPR: lval_qexpr_print(v); break;
-    case LVAL_FUN:   printf("<funtion>"); break;
+    case LVAL_FUN:  
+      if (IS_BUILTIN(v))
+        printf("<builtin>"); 
+      else {
+        printf("(lambda "); lval_print(v->value.fun->formals);
+        putchar(' '); lval_print(v->value.fun->body); putchar(')');
+      }
+      break;
   }
 }
 
@@ -298,6 +337,7 @@ void lval_println(lval* v) { lval_print(v); putchar('\n'); }
 /* Create a new env */
 lenv* lenv_new(void) {
   lenv* e = malloc(sizeof(lenv));
+  e->par = NULL;
   e->count = 0;
   e->vars  = NULL;
   return e;
@@ -313,6 +353,20 @@ void lenv_del(lenv* e) {
   free(e);
 }
 
+
+/* Duplicate a environment */
+lenv* lenv_copy(lenv* e) {
+  lenv* n = malloc(sizeof(lenv));
+  n->par = e->par;
+  n->count = e->count;
+  n->vars = malloc(sizeof(lvar) * n->count);
+  for (int i = 0; i < e->count; i++) {
+    n->vars[i].sym = strdup(e->vars[i].sym);
+    n->vars[i].val = lval_copy(e->vars[i].val);
+  }
+  return n;
+}
+
 /* Get a val by its symbol name from lenv */
 lval* lenv_get(lenv* e, lval* k) {
 
@@ -324,11 +378,16 @@ lval* lenv_get(lenv* e, lval* k) {
       return lval_copy(e->vars[i].val);
     }
   }
-  /* If no symbol found return error */
-  return lval_err(LERR_ERR, "unbound symbol!");
+
+  if (e->par) {
+    return lenv_get(e->par, k);
+  } else {
+    /* If no symbol found return error */
+    return lval_err(LERR_ERR, "unbound symbol!");
+  }
 }
 
-/* Replace var in env
+/* Replace var in env or add new var to env
  * lenv, lval, lval -> void
  * find k->sym in e; if found, replace it with v,
  *                   if not found, add v to e
@@ -355,4 +414,12 @@ void lenv_put(lenv* e, lval* k, lval* v) {
   /* Copy contents of lval and symbol string into new location */
   e->vars[e->count-1].val = lval_copy(v);
   e->vars[e->count-1].sym = strdup(k->value.sym);
+}
+
+/* Define new var in global env */
+void lenv_def(lenv* e, lval* k, lval* v) {
+  /* Iterate till e has no parent */
+  while (e->par) { e = e->par; }
+  /* Put value in e */
+  lenv_put(e, k, v);
 }

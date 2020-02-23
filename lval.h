@@ -17,8 +17,8 @@ typedef lval* (*lbuiltin) (lenv*, lval*);
 
 typedef struct lfun {
   lenv* env;
-  lval* formals;    /* Q-expr of list for function parameters */
-  lval* body;       /* Q-expr of list for function body  */
+  lval* formals;    /* list for function parameters */
+  lval* body;       /* list for function body  */
   lbuiltin builtin; /* For internal function */
 } lfun;
 
@@ -58,11 +58,18 @@ lval* lval_sym(char* s);
 /* A pointer to a new empty list lval */
 lval* lval_list(void);
 
-/* A pointer to a new empty qexpr lval */
-lval* lval_qexpr(void);
+/* Create new Q-expr lval for lval */
+lval* lval_qexpr(lval* x);
 
-/* Create a pointer to a new Function lval */
-lval* lval_fun(lbuiltin func);
+/* Check if builtin function val */
+#define IS_BUILTIN(v) \
+  (v->value.fun->builtin != NULL)
+
+/* Create a pointer to a new Bulitin function lval */
+lval* lval_builtin(lbuiltin builtin);
+
+/* Create a pointer to a new Lambda function lval */
+lval* lval_lambda(lval* formals, lval* body);
 
 /* Free var of lval type */
 void lval_del(lval* v);
@@ -112,6 +119,7 @@ typedef struct lvar {
 } lvar;
 
 struct lenv {
+  lenv* par; /* Point to parent env */
   int count;
   lvar* vars;
 };
@@ -120,5 +128,12 @@ lenv* lenv_new(void);
 void lenv_del(lenv* e);
 lval* lenv_get(lenv* e, lval* k);
 void lenv_put(lenv* e, lval* k, lval* v);
+
+/* Define new var in global env */
+void lenv_def(lenv* e, lval* k, lval* v);
+
+/* Duplicate a environment */
+lenv* lenv_copy(lenv* e);
+ 
  
 #endif

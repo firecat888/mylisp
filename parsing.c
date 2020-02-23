@@ -75,9 +75,8 @@ lval *lval_read(mpc_ast_t* t) {
 
     mpc_ast_t* child = t->children[1];  /*Get 2nd children */
 
-    x = lval_qexpr();
     lval* c = lval_read(child);
-    x = lval_qexpr_add(x, c);
+    x = lval_qexpr(c);
   }
   else {
     perror("Parsing fail: unpxprected tag");
